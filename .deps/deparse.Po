@@ -1,0 +1,349 @@
+src/deparse.o: src/deparse.c \
+ /home/cristian/pg_project/include/postgresql/server/postgres.h \
+ /home/cristian/pg_project/include/postgresql/server/c.h \
+ /home/cristian/pg_project/include/postgresql/server/postgres_ext.h \
+ /home/cristian/pg_project/include/postgresql/server/pg_config_ext.h \
+ /home/cristian/pg_project/include/postgresql/server/pg_config.h \
+ /home/cristian/pg_project/include/postgresql/server/pg_config_manual.h \
+ /home/cristian/pg_project/include/postgresql/server/pg_config_os.h \
+ /home/cristian/pg_project/include/postgresql/server/port.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/elog.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/errcodes.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/palloc.h \
+ /home/cristian/pg_project/include/postgresql/server/access/heapam.h \
+ /home/cristian/pg_project/include/postgresql/server/access/sdir.h \
+ /home/cristian/pg_project/include/postgresql/server/access/skey.h \
+ /home/cristian/pg_project/include/postgresql/server/access/attnum.h \
+ /home/cristian/pg_project/include/postgresql/server/access/stratnum.h \
+ /home/cristian/pg_project/include/postgresql/server/fmgr.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/lockoptions.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/primnodes.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/bitmapset.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/pg_list.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/nodes.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/bufpage.h \
+ /home/cristian/pg_project/include/postgresql/server/access/xlogdefs.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/block.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/item.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/off.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/itemid.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/lockdefs.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/relcache.h \
+ /home/cristian/pg_project/include/postgresql/server/access/tupdesc.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_attribute.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/genbki.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_attribute_d.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/snapshot.h \
+ /home/cristian/pg_project/include/postgresql/server/access/htup.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/itemptr.h \
+ /home/cristian/pg_project/include/postgresql/server/datatype/timestamp.h \
+ /home/cristian/pg_project/include/postgresql/server/lib/pairingheap.h \
+ /home/cristian/pg_project/include/postgresql/server/lib/stringinfo.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/buf.h \
+ /home/cristian/pg_project/include/postgresql/server/access/htup_details.h \
+ /home/cristian/pg_project/include/postgresql/server/access/tupmacs.h \
+ /home/cristian/pg_project/include/postgresql/server/access/transam.h \
+ /home/cristian/pg_project/include/postgresql/server/access/sysattr.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_aggregate.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_aggregate_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/objectaddress.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/acl.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/parsenodes.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/value.h \
+ /home/cristian/pg_project/include/postgresql/server/partitioning/partdefs.h \
+ /home/cristian/pg_project/include/postgresql/server/parser/parse_node.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/queryenvironment.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/array.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/expandeddatum.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_collation.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_collation_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_namespace.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_namespace_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_operator.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_operator_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_proc.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_proc_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_type.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_type_d.h \
+ /home/cristian/pg_project/include/postgresql/server/commands/defrem.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/params.h \
+ /home/cristian/pg_project/include/postgresql/server/tcop/dest.h \
+ /home/cristian/pg_project/include/postgresql/server/executor/tuptable.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/makefuncs.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/nodeFuncs.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/plannodes.h \
+ /home/cristian/pg_project/include/postgresql/server/optimizer/clauses.h \
+ /home/cristian/pg_project/include/postgresql/server/nodes/relation.h \
+ /home/cristian/pg_project/include/postgresql/server/optimizer/prep.h \
+ /home/cristian/pg_project/include/postgresql/server/optimizer/tlist.h \
+ /home/cristian/pg_project/include/postgresql/server/optimizer/var.h \
+ /home/cristian/pg_project/include/postgresql/server/parser/parsetree.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/builtins.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/fmgrprotos.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/lsyscache.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/rel.h \
+ /home/cristian/pg_project/include/postgresql/server/access/xlog.h \
+ /home/cristian/pg_project/include/postgresql/server/access/rmgr.h \
+ /home/cristian/pg_project/include/postgresql/server/access/rmgrlist.h \
+ /home/cristian/pg_project/include/postgresql/server/access/xloginsert.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/relfilenode.h \
+ /home/cristian/pg_project/include/postgresql/server/common/relpath.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/catversion.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/backendid.h \
+ /home/cristian/pg_project/include/postgresql/server/access/xlogreader.h \
+ /home/cristian/pg_project/include/postgresql/server/access/xlogrecord.h \
+ /home/cristian/pg_project/include/postgresql/server/port/pg_crc32c.h \
+ /home/cristian/pg_project/include/postgresql/server/port/pg_bswap.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/fd.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_class.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_class_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_index.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_index_d.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_publication.h \
+ /home/cristian/pg_project/include/postgresql/server/catalog/pg_publication_d.h \
+ /home/cristian/pg_project/include/postgresql/server/rewrite/prs2lock.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/reltrigger.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/syscache.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/typcache.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/dsm.h \
+ /home/cristian/pg_project/include/postgresql/server/storage/dsm_impl.h \
+ /home/cristian/pg_project/include/postgresql/server/utils/dsa.h \
+ /home/cristian/pg_project/include/postgresql/server/port/atomics.h \
+ /home/cristian/pg_project/include/postgresql/server/port/atomics/arch-x86.h \
+ /home/cristian/pg_project/include/postgresql/server/port/atomics/generic-gcc.h \
+ /home/cristian/pg_project/include/postgresql/server/port/atomics/fallback.h \
+ /home/cristian/pg_project/include/postgresql/server/port/atomics/generic.h \
+ src/polycrack_fdw.h \
+ /home/cristian/pg_project/include/postgresql/server/foreign/foreign.h
+
+/home/cristian/pg_project/include/postgresql/server/postgres.h:
+
+/home/cristian/pg_project/include/postgresql/server/c.h:
+
+/home/cristian/pg_project/include/postgresql/server/postgres_ext.h:
+
+/home/cristian/pg_project/include/postgresql/server/pg_config_ext.h:
+
+/home/cristian/pg_project/include/postgresql/server/pg_config.h:
+
+/home/cristian/pg_project/include/postgresql/server/pg_config_manual.h:
+
+/home/cristian/pg_project/include/postgresql/server/pg_config_os.h:
+
+/home/cristian/pg_project/include/postgresql/server/port.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/elog.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/errcodes.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/palloc.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/heapam.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/sdir.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/skey.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/attnum.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/stratnum.h:
+
+/home/cristian/pg_project/include/postgresql/server/fmgr.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/lockoptions.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/primnodes.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/bitmapset.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/pg_list.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/nodes.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/bufpage.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/xlogdefs.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/block.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/item.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/off.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/itemid.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/lockdefs.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/relcache.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/tupdesc.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_attribute.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/genbki.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_attribute_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/snapshot.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/htup.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/itemptr.h:
+
+/home/cristian/pg_project/include/postgresql/server/datatype/timestamp.h:
+
+/home/cristian/pg_project/include/postgresql/server/lib/pairingheap.h:
+
+/home/cristian/pg_project/include/postgresql/server/lib/stringinfo.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/buf.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/htup_details.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/tupmacs.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/transam.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/sysattr.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_aggregate.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_aggregate_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/objectaddress.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/acl.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/parsenodes.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/value.h:
+
+/home/cristian/pg_project/include/postgresql/server/partitioning/partdefs.h:
+
+/home/cristian/pg_project/include/postgresql/server/parser/parse_node.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/queryenvironment.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/array.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/expandeddatum.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_collation.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_collation_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_namespace.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_namespace_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_operator.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_operator_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_proc.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_proc_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_type.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_type_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/commands/defrem.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/params.h:
+
+/home/cristian/pg_project/include/postgresql/server/tcop/dest.h:
+
+/home/cristian/pg_project/include/postgresql/server/executor/tuptable.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/makefuncs.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/nodeFuncs.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/plannodes.h:
+
+/home/cristian/pg_project/include/postgresql/server/optimizer/clauses.h:
+
+/home/cristian/pg_project/include/postgresql/server/nodes/relation.h:
+
+/home/cristian/pg_project/include/postgresql/server/optimizer/prep.h:
+
+/home/cristian/pg_project/include/postgresql/server/optimizer/tlist.h:
+
+/home/cristian/pg_project/include/postgresql/server/optimizer/var.h:
+
+/home/cristian/pg_project/include/postgresql/server/parser/parsetree.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/builtins.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/fmgrprotos.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/lsyscache.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/rel.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/xlog.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/rmgr.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/rmgrlist.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/xloginsert.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/relfilenode.h:
+
+/home/cristian/pg_project/include/postgresql/server/common/relpath.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/catversion.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/backendid.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/xlogreader.h:
+
+/home/cristian/pg_project/include/postgresql/server/access/xlogrecord.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/pg_crc32c.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/pg_bswap.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/fd.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_class.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_class_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_index.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_index_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_publication.h:
+
+/home/cristian/pg_project/include/postgresql/server/catalog/pg_publication_d.h:
+
+/home/cristian/pg_project/include/postgresql/server/rewrite/prs2lock.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/reltrigger.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/syscache.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/typcache.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/dsm.h:
+
+/home/cristian/pg_project/include/postgresql/server/storage/dsm_impl.h:
+
+/home/cristian/pg_project/include/postgresql/server/utils/dsa.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/atomics.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/atomics/arch-x86.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/atomics/generic-gcc.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/atomics/fallback.h:
+
+/home/cristian/pg_project/include/postgresql/server/port/atomics/generic.h:
+
+src/polycrack_fdw.h:
+
+/home/cristian/pg_project/include/postgresql/server/foreign/foreign.h:
