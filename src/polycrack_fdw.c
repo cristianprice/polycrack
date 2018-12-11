@@ -51,6 +51,10 @@ extern Datum polycrack_fdw_validator(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(polycrack_fdw_handler);
 PG_FUNCTION_INFO_V1(polycrack_fdw_validator);
 
+static bool ec_member_matches_foreign(PlannerInfo *root, RelOptInfo *rel, EquivalenceClass *ec, EquivalenceMember *em,
+		void *arg);
+static void add_paths_with_pathkeys_for_rel(PlannerInfo *root, RelOptInfo *rel, Path *epq_path);
+
 /* callback functions */
 #if (PG_VERSION_NUM >= 90200)
 static void polycrackGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
@@ -143,6 +147,11 @@ struct polycrackFdwOption {
 	const char *optname;
 	Oid optcontext; /* Oid of catalog in which option may appear */
 };
+
+typedef struct {
+	Expr *current; /* current expr, or NULL if not yet found */
+	List *already_used; /* expressions already dealt with */
+} ec_member_foreign_arg;
 
 /*
  * The plan state is set up in polycrackGetForeignRelSize and stashed away in
@@ -261,6 +270,210 @@ Datum polycrack_fdw_validator(PG_FUNCTION_ARGS) {
 		ereport(ERROR, (errcode(ERRCODE_FDW_INVALID_OPTION_NAME), errmsg("invalid options"), errhint("Polycrack FDW does not support any options")));
 
 	PG_RETURN_VOID() ;
+}
+
+/*
+ * get_useful_ecs_for_relation
+ *		Determine which EquivalenceClasses might be involved in useful
+ *		orderings of this relation.
+ *
+ * This function is in some respects a mirror image of the core function
+ * pathkeys_useful_for_merging: for a regular table, we know what indexes
+ * we have and want to test whether any of them are useful.  For a foreign
+ * table, we don't know what indexes are present on the remote side but
+ * want to speculate about which ones we'd like to use if they existed.
+ *
+ * This function returns a list of potentially-useful equivalence classes,
+ * but it does not guarantee that an EquivalenceMember exists which contains
+ * Vars only from the given relation.  For example, given ft1 JOIN t1 ON
+ * ft1.x + t1.x = 0, this function will say that the equivalence class
+ * containing ft1.x + t1.x is potentially useful.  Supposing ft1 is remote and
+ * t1 is local (or on a different server), it will turn out that no useful
+ * ORDER BY clause can be generated.  It's not our job to figure that out
+ * here; we're only interested in identifying relevant ECs.
+ */
+static List* get_useful_ecs_for_relation(PlannerInfo *root, RelOptInfo *rel) {
+	List *useful_eclass_list = NIL;
+	ListCell *lc;
+	Relids relids;
+
+	/*
+	 * First, consider whether any active EC is potentially useful for a merge
+	 * join against this relation.
+	 */
+	if (rel->has_eclass_joins) {
+		foreach(lc, root->eq_classes)
+		{
+			EquivalenceClass *cur_ec = (EquivalenceClass *) lfirst(lc);
+
+			if (eclass_useful_for_merging(root, cur_ec, rel))
+				useful_eclass_list = lappend(useful_eclass_list, cur_ec);
+		}
+	}
+
+	/*
+	 * Next, consider whether there are any non-EC derivable join clauses that
+	 * are merge-joinable.  If the joininfo list is empty, we can exit
+	 * quickly.
+	 */
+	if (rel->joininfo == NIL)
+		return useful_eclass_list;
+
+	/* If this is a child rel, we must use the topmost parent rel to search. */
+	if (IS_OTHER_REL(rel)) {
+		Assert(!bms_is_empty(rel->top_parent_relids));
+		relids = rel->top_parent_relids;
+	} else
+		relids = rel->relids;
+
+	/* Check each join clause in turn. */
+	foreach(lc, rel->joininfo)
+	{
+		RestrictInfo *restrictinfo = (RestrictInfo *) lfirst(lc);
+
+		/* Consider only mergejoinable clauses */
+		if (restrictinfo->mergeopfamilies == NIL)
+			continue;
+
+		/* Make sure we've got canonical ECs. */
+		update_mergeclause_eclasses(root, restrictinfo);
+
+		/*
+		 * restrictinfo->mergeopfamilies != NIL is sufficient to guarantee
+		 * that left_ec and right_ec will be initialized, per comments in
+		 * distribute_qual_to_rels.
+		 *
+		 * We want to identify which side of this merge-joinable clause
+		 * contains columns from the relation produced by this RelOptInfo. We
+		 * test for overlap, not containment, because there could be extra
+		 * relations on either side.  For example, suppose we've got something
+		 * like ((A JOIN B ON A.x = B.x) JOIN C ON A.y = C.y) LEFT JOIN D ON
+		 * A.y = D.y.  The input rel might be the joinrel between A and B, and
+		 * we'll consider the join clause A.y = D.y. relids contains a
+		 * relation not involved in the join class (B) and the equivalence
+		 * class for the left-hand side of the clause contains a relation not
+		 * involved in the input rel (C).  Despite the fact that we have only
+		 * overlap and not containment in either direction, A.y is potentially
+		 * useful as a sort column.
+		 *
+		 * Note that it's even possible that relids overlaps neither side of
+		 * the join clause.  For example, consider A LEFT JOIN B ON A.x = B.x
+		 * AND A.x = 1.  The clause A.x = 1 will appear in B's joininfo list,
+		 * but overlaps neither side of B.  In that case, we just skip this
+		 * join clause, since it doesn't suggest a useful sort order for this
+		 * relation.
+		 */
+		if (bms_overlap(relids, restrictinfo->right_ec->ec_relids))
+			useful_eclass_list = list_append_unique_ptr(useful_eclass_list, restrictinfo->right_ec);
+		else if (bms_overlap(relids, restrictinfo->left_ec->ec_relids))
+			useful_eclass_list = list_append_unique_ptr(useful_eclass_list, restrictinfo->left_ec);
+	}
+
+	return useful_eclass_list;
+}
+
+/*
+ * get_useful_pathkeys_for_relation
+ *		Determine which orderings of a relation might be useful.
+ *
+ * Getting data in sorted order can be useful either because the requested
+ * order matches the final output ordering for the overall query we're
+ * planning, or because it enables an efficient merge join.  Here, we try
+ * to figure out which pathkeys to consider.
+ */
+static List* get_useful_pathkeys_for_relation(PlannerInfo *root, RelOptInfo *rel) {
+	List *useful_pathkeys_list = NIL;
+	List *useful_eclass_list;
+	PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) rel->fdw_private;
+	EquivalenceClass *query_ec = NULL;
+	ListCell *lc;
+
+	/*
+	 * Pushing the query_pathkeys to the remote server is always worth
+	 * considering, because it might let us avoid a local sort.
+	 */
+	if (root->query_pathkeys) {
+		bool query_pathkeys_ok = true;
+
+		foreach(lc, root->query_pathkeys)
+		{
+			PathKey *pathkey = (PathKey *) lfirst(lc);
+			EquivalenceClass *pathkey_ec = pathkey->pk_eclass;
+			Expr *em_expr;
+
+			/*
+			 * The planner and executor don't have any clever strategy for
+			 * taking data sorted by a prefix of the query's pathkeys and
+			 * getting it to be sorted by all of those pathkeys. We'll just
+			 * end up resorting the entire data set.  So, unless we can push
+			 * down all of the query pathkeys, forget it.
+			 *
+			 * is_foreign_expr would detect volatile expressions as well, but
+			 * checking ec_has_volatile here saves some cycles.
+			 */
+			if (pathkey_ec->ec_has_volatile || !(em_expr = find_em_expr_for_rel(pathkey_ec, rel))
+					|| !is_foreign_expr(root, rel, em_expr)) {
+				query_pathkeys_ok = false;
+				break;
+			}
+		}
+
+		if (query_pathkeys_ok)
+			useful_pathkeys_list = list_make1(list_copy(root->query_pathkeys));
+	}
+
+	/*
+	 * Even if we're not using remote estimates, having the remote side do the
+	 * sort generally won't be any worse than doing it locally, and it might
+	 * be much better if the remote side can generate data in the right order
+	 * without needing a sort at all.  However, what we're going to do next is
+	 * try to generate pathkeys that seem promising for possible merge joins,
+	 * and that's more speculative.  A wrong choice might hurt quite a bit, so
+	 * bail out if we can't use remote estimates.
+	 */
+	if (!fpinfo->use_remote_estimate)
+		return useful_pathkeys_list;
+
+	/* Get the list of interesting EquivalenceClasses. */
+	useful_eclass_list = get_useful_ecs_for_relation(root, rel);
+
+	/* Extract unique EC for query, if any, so we don't consider it again. */
+	if (list_length(root->query_pathkeys) == 1) {
+		PathKey *query_pathkey = linitial(root->query_pathkeys);
+
+		query_ec = query_pathkey->pk_eclass;
+	}
+
+	/*
+	 * As a heuristic, the only pathkeys we consider here are those of length
+	 * one.  It's surely possible to consider more, but since each one we
+	 * choose to consider will generate a round-trip to the remote side, we
+	 * need to be a bit cautious here.  It would sure be nice to have a local
+	 * cache of information about remote index definitions...
+	 */
+	foreach(lc, useful_eclass_list)
+	{
+		EquivalenceClass *cur_ec = lfirst(lc);
+		Expr *em_expr;
+		PathKey *pathkey;
+
+		/* If redundant with what we did above, skip it. */
+		if (cur_ec == query_ec)
+			continue;
+
+		/* If no pushable expression for this rel, skip it. */
+		em_expr = find_em_expr_for_rel(cur_ec, rel);
+		if (em_expr == NULL || !is_foreign_expr(root, rel, em_expr))
+			continue;
+
+		/* Looks like we can generate a pathkey, so let's do it. */
+		pathkey = make_canonical_pathkey(root, cur_ec, linitial_oid(cur_ec->ec_opfamilies),
+		BTLessStrategyNumber,
+		false);
+		useful_pathkeys_list = lappend(useful_pathkeys_list, list_make1(pathkey));
+	}
+
+	return useful_pathkeys_list;
 }
 
 void estimate_path_cost_size(PlannerInfo *root, RelOptInfo *foreignrel, List *param_join_conds, List *pathkeys,
@@ -767,6 +980,62 @@ static void polycrackGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, O
 
 }
 
+static bool ec_member_matches_foreign(PlannerInfo *root, RelOptInfo *rel, EquivalenceClass *ec, EquivalenceMember *em,
+		void *arg) {
+	ec_member_foreign_arg *state = (ec_member_foreign_arg *) arg;
+	Expr *expr = em->em_expr;
+
+	/*
+	 * If we've identified what we're processing in the current scan, we only
+	 * want to match that expression.
+	 */
+	if (state->current != NULL)
+		return equal(expr, state->current);
+
+	/*
+	 * Otherwise, ignore anything we've already processed.
+	 */
+	if (list_member(state->already_used, expr))
+		return false;
+
+	/* This is the new target to process. */
+	state->current = expr;
+	return true;
+}
+
+static void add_paths_with_pathkeys_for_rel(PlannerInfo *root, RelOptInfo *rel, Path *epq_path) {
+	List *useful_pathkeys_list = NIL; /* List of all pathkeys */
+	ListCell *lc;
+
+	useful_pathkeys_list = get_useful_pathkeys_for_relation(root, rel);
+
+	/* Create one path for each set of pathkeys we found above. */
+	foreach(lc, useful_pathkeys_list)
+	{
+		double rows;
+		int width;
+		Cost startup_cost;
+		Cost total_cost;
+		List *useful_pathkeys = lfirst(lc);
+		Path *sorted_epq_path;
+
+		estimate_path_cost_size(root, rel, NIL, useful_pathkeys, &rows, &width, &startup_cost, &total_cost);
+
+		/*
+		 * The EPQ path must be at least as well sorted as the path itself, in
+		 * case it gets used as input to a mergejoin.
+		 */
+		sorted_epq_path = epq_path;
+		if (sorted_epq_path != NULL && !pathkeys_contained_in(useful_pathkeys, sorted_epq_path->pathkeys))
+			sorted_epq_path = (Path *) create_sort_path(root, rel, sorted_epq_path, useful_pathkeys, -1.0);
+
+		add_path(rel, (Path *) create_foreignscan_path(root, rel,
+		NULL, rows, startup_cost, total_cost, useful_pathkeys,
+		NULL, sorted_epq_path,
+		NIL));
+	}
+}
+
 static void polycrackGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid) {
 	/*
 	 * Create possible access paths for a scan on a foreign table. This is
@@ -787,25 +1056,185 @@ static void polycrackGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid
 	 * PolycrackFdwPlanState *plan_state = baserel->fdw_private;
 	 */
 
-	Cost startup_cost, total_cost;
+	PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) baserel->fdw_private;
+	ForeignPath *path;
+	List *ppi_list;
+	ListCell *lc;
 
-	elog(DEBUG1, "entering function %s", __func__);
+	/*
+	 * Create simplest ForeignScan path node and add it to baserel.  This path
+	 * corresponds to SeqScan path of regular tables (though depending on what
+	 * baserestrict conditions we were able to send to remote, there might
+	 * actually be an indexscan happening there).  We already did all the work
+	 * to estimate cost and size of this path.
+	 */
+	path = create_foreignscan_path(root, baserel,
+	NULL, /* default pathtarget */
+	fpinfo->rows, fpinfo->startup_cost, fpinfo->total_cost,
+	NIL, /* no pathkeys */
+	NULL, /* no outer rel either */
+	NULL, /* no extra plan */
+	NIL); /* no fdw_private list */
 
-	startup_cost = 0;
-	total_cost = startup_cost + baserel->rows;
+	add_path(baserel, (Path *) path);
 
-	/* Create a ForeignPath node and add it as only possible path */
-	add_path(baserel, (Path *) create_foreignscan_path(root, baserel,
-#if (PG_VERSION_NUM >= 90600)
-			NULL, /* default pathtarget */
-#endif
-			baserel->rows, startup_cost, total_cost,
-			NIL, /* no pathkeys */
-			NULL, /* no outer rel either */
-#if (PG_VERSION_NUM >= 90500)
-			NULL, /* no extra plan */
-#endif
-			NIL)); /* no fdw_private data */
+	/* Add paths with pathkeys */
+	add_paths_with_pathkeys_for_rel(root, baserel, NULL);
+
+	/*
+	 * If we're not using remote estimates, stop here.  We have no way to
+	 * estimate whether any join clauses would be worth sending across, so
+	 * don't bother building parameterized paths.
+	 */
+	if (!fpinfo->use_remote_estimate)
+		return;
+
+	/*
+	 * Thumb through all join clauses for the rel to identify which outer
+	 * relations could supply one or more safe-to-send-to-remote join clauses.
+	 * We'll build a parameterized path for each such outer relation.
+	 *
+	 * It's convenient to manage this by representing each candidate outer
+	 * relation by the ParamPathInfo node for it.  We can then use the
+	 * ppi_clauses list in the ParamPathInfo node directly as a list of the
+	 * interesting join clauses for that rel.  This takes care of the
+	 * possibility that there are multiple safe join clauses for such a rel,
+	 * and also ensures that we account for unsafe join clauses that we'll
+	 * still have to enforce locally (since the parameterized-path machinery
+	 * insists that we handle all movable clauses).
+	 */
+	ppi_list = NIL;
+	foreach(lc, baserel->joininfo)
+	{
+		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+		Relids required_outer;
+		ParamPathInfo *param_info;
+
+		/* Check if clause can be moved to this rel */
+		if (!join_clause_is_movable_to(rinfo, baserel))
+			continue;
+
+		/* See if it is safe to send to remote */
+		if (!is_foreign_expr(root, baserel, rinfo->clause))
+			continue;
+
+		/* Calculate required outer rels for the resulting path */
+		required_outer = bms_union(rinfo->clause_relids, baserel->lateral_relids);
+		/* We do not want the foreign rel itself listed in required_outer */
+		required_outer = bms_del_member(required_outer, baserel->relid);
+
+		/*
+		 * required_outer probably can't be empty here, but if it were, we
+		 * couldn't make a parameterized path.
+		 */
+		if (bms_is_empty(required_outer))
+			continue;
+
+		/* Get the ParamPathInfo */
+		param_info = get_baserel_parampathinfo(root, baserel, required_outer);
+		Assert(param_info != NULL);
+
+		/*
+		 * Add it to list unless we already have it.  Testing pointer equality
+		 * is OK since get_baserel_parampathinfo won't make duplicates.
+		 */
+		ppi_list = list_append_unique_ptr(ppi_list, param_info);
+	}
+
+	/*
+	 * The above scan examined only "generic" join clauses, not those that
+	 * were absorbed into EquivalenceClauses.  See if we can make anything out
+	 * of EquivalenceClauses.
+	 */
+	if (baserel->has_eclass_joins) {
+		/*
+		 * We repeatedly scan the eclass list looking for column references
+		 * (or expressions) belonging to the foreign rel.  Each time we find
+		 * one, we generate a list of equivalence joinclauses for it, and then
+		 * see if any are safe to send to the remote.  Repeat till there are
+		 * no more candidate EC members.
+		 */
+		ec_member_foreign_arg arg;
+
+		arg.already_used = NIL;
+		for (;;) {
+			List *clauses;
+
+			/* Make clauses, skipping any that join to lateral_referencers */
+			arg.current = NULL;
+			clauses =
+					generate_implied_equalities_for_column(root, baserel, ec_member_matches_foreign, (void *) &arg, baserel->lateral_referencers);
+
+			/* Done if there are no more expressions in the foreign rel */
+			if (arg.current == NULL) {
+				Assert(clauses == NIL);
+				break;
+			}
+
+			/* Scan the extracted join clauses */
+			foreach(lc, clauses)
+			{
+				RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+				Relids required_outer;
+				ParamPathInfo *param_info;
+
+				/* Check if clause can be moved to this rel */
+				if (!join_clause_is_movable_to(rinfo, baserel))
+					continue;
+
+				/* See if it is safe to send to remote */
+				if (!is_foreign_expr(root, baserel, rinfo->clause))
+					continue;
+
+				/* Calculate required outer rels for the resulting path */
+				required_outer = bms_union(rinfo->clause_relids, baserel->lateral_relids);
+				required_outer = bms_del_member(required_outer, baserel->relid);
+				if (bms_is_empty(required_outer))
+					continue;
+
+				/* Get the ParamPathInfo */
+				param_info = get_baserel_parampathinfo(root, baserel, required_outer);
+				Assert(param_info != NULL);
+
+				/* Add it to list unless we already have it */
+				ppi_list = list_append_unique_ptr(ppi_list, param_info);
+			}
+
+			/* Try again, now ignoring the expression we found this time */
+			arg.already_used = lappend(arg.already_used, arg.current);
+		}
+	}
+
+	/*
+	 * Now build a path for each useful outer relation.
+	 */
+	foreach(lc, ppi_list)
+	{
+		ParamPathInfo *param_info = (ParamPathInfo *) lfirst(lc);
+		double rows;
+		int width;
+		Cost startup_cost;
+		Cost total_cost;
+
+		/* Get a cost estimate from the remote */
+		estimate_path_cost_size(root, baserel, param_info->ppi_clauses, NIL, &rows, &width, &startup_cost, &total_cost);
+
+		/*
+		 * ppi_rows currently won't get looked at by anything, but still we
+		 * may as well ensure that it matches our idea of the rowcount.
+		 */
+		param_info->ppi_rows = rows;
+
+		/* Make the path */
+		path = create_foreignscan_path(root, baserel,
+		NULL, /* default pathtarget */
+		rows, startup_cost, total_cost,
+		NIL, /* no pathkeys */
+		param_info->ppi_req_outer,
+		NULL,
+		NIL); /* no fdw_private list */
+		add_path(baserel, (Path *) path);
+	}
 }
 
 #if (PG_VERSION_NUM < 90500)
